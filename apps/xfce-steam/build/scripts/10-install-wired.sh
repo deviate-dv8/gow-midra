@@ -49,3 +49,30 @@ EOF
     chmod +x "$PLUGINS_SHORTCUT"
     gio set "$PLUGINS_SHORTCUT" metadata::trusted true 2>/dev/null || true
 fi
+
+# The panel's own Log Out button is broken (its command-logout string uses
+# "&&", which xfce4-panel spawns via g_shell_parse_argv rather than a real
+# shell -- that only tokenizes, it doesn't interpret shell operators, so
+# "&&" ends up passed to pkill as a literal extra argument and pkill just
+# errors out on "only one pattern can be provided", doing nothing). This
+# shortcut does the same job xfce4-session-logout should: ending
+# xfce4-session and Xwayland, which is what launch-comp.sh's exec chain is
+# blocked on, so it makes the whole container exit and Wolf return to its
+# own UI.
+WOLFUI_SHORTCUT="$HOME/Desktop/Go back to Wolf UI.desktop"
+if [ ! -f "$WOLFUI_SHORTCUT" ]; then
+    gow_log "Creating Go back to Wolf UI shortcut on the Desktop"
+    cat > "$WOLFUI_SHORTCUT" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Go back to Wolf UI
+Comment=End this session and return to the Wolf UI
+Exec=sh -c "pkill xfce4-session; pkill Xwayland"
+Icon=system-log-out
+Terminal=false
+Categories=Utility;
+EOF
+    chmod +x "$WOLFUI_SHORTCUT"
+    gio set "$WOLFUI_SHORTCUT" metadata::trusted true 2>/dev/null || true
+fi
