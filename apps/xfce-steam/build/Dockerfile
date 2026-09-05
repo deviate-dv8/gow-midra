@@ -115,16 +115,15 @@ RUN echo "\nALL ALL=NOPASSWD: /opt/gow/startdbus" >> /etc/sudoers
 RUN chmod u+s /usr/bin/bwrap
 
 ######################################
-# Extend with Steam + AppImage/FUSE + SteaMidra
+# Extend with Steam + AppImage/FUSE + enter-the-wired
 ######################################
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # libxcb-cursor0: Qt 6.5+ hard-requires this for its xcb platform plugin --
-# without it a PyQt6 app (like the ACCELA tool bundled in SteaMidra) can't
-# initialize any display backend at all and aborts. Not steam-specific, but
-# there's nowhere better to put a single small package for the desktop's
-# other GUI apps.
+# without it a PyQt6 app can't initialize any display backend at all and
+# aborts. Not steam-specific, but there's nowhere better to put a single
+# small package for the desktop's other GUI apps.
 ARG STEAM_PACKAGES=" \
     steam \
     dbus-daemon dbus-system-bus-common dbus-session-bus-common whoopsie network-manager bluez \
@@ -190,23 +189,17 @@ RUN ln -sf "$HOME" /home/deck
 # Linux Runtime needs (see the bwrap-builder stage comment).
 COPY --from=bwrap-builder --chmod=755 /root/bubblewrap/_builddir/bwrap /usr/bin/bwrap
 
-# SteaMidra: the actual install is left for the user to trigger from a
-# Desktop shortcut rather than run automatically at container start --
-# Wolf bind-mounts a fresh per-app-slot persistent volume onto $HOME on
-# every session (/etc/wolf/profile-data/user/<app name> -> /home/retro) so
-# your Steam library/config survive restarts, but that also means the
-# mount starts out empty and completely hides anything written to $HOME at
-# build time, and a ~500MB download run silently at startup means staring
-# at a black screen until it finishes. So: the installer logic itself is
-# baked into the image here (static, fine to bake), and
-# 10-install-midra.sh (startup.d, below) just drops a Desktop shortcut
-# that runs it visibly, in a terminal, whenever you actually want it.
-ARG MIDRA_RELEASE_URL="https://github.com/Midrags/SFF/releases/download/v6.6.6/SteaMidra-6.6.6-linux.zip"
-ENV MIDRA_RELEASE_URL=$MIDRA_RELEASE_URL
-COPY --chmod=755 scripts/install-midra.sh /opt/gow/install-midra.sh
-COPY --chmod=755 scripts/install-midra-interactive.sh /opt/gow/install-midra-interactive.sh
+# enter-the-wired / install-plugins: run on-demand from Desktop shortcuts
+# rather than automatically at container start -- Wolf bind-mounts a fresh
+# per-app-slot persistent volume onto $HOME on every session
+# (/etc/wolf/profile-data/user/<app name> -> /home/retro) so the mount
+# starts out empty and completely hides anything written to $HOME at build
+# time, and running an installer silently at startup means staring at a
+# black screen until it finishes. So 10-install-wired.sh (startup.d, below)
+# just drops the two Desktop shortcuts that fetch and run each installer
+# visibly, in a terminal, whenever you actually want them.
 RUN mkdir -p /opt/gow/startup.d
-COPY --chmod=777 scripts/10-install-midra.sh /opt/gow/startup.d/10-install-midra.sh
+COPY --chmod=777 scripts/10-install-wired.sh /opt/gow/startup.d/10-install-wired.sh
 
 # Steam system services (dbus-system/bluetooth/NetworkManager for controller pairing)
 COPY --chmod=777 scripts/system-services.sh /etc/cont-init.d/system-services.sh
