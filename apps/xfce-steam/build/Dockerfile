@@ -241,6 +241,18 @@ COPY --chmod=777 scripts/system-services.sh /etc/cont-init.d/system-services.sh
 RUN sed -i '1i ALL ALL=(ALL:ALL) ALL' /etc/sudoers
 COPY --chmod=777 scripts/set-password.sh /etc/cont-init.d/11-set-password.sh
 
+# enter-the-wired's fix-deps script installs packages via bare
+# `sudo apt-get install ...` (no password piped in, stderr suppressed) for
+# every dependency it checks -- including ones that genuinely aren't
+# available, which it's built to tolerate and just skip. Without a NOPASSWD
+# rule every one of those sudo calls instead fails on "a password is
+# required" and gets misreported as the package itself being missing, which
+# masked the real problem the first time this surfaced. Scoped to
+# apt-get/dpkg/apt rather than a second blanket ALL rule, and appended here
+# (after the general password-requiring ALL rule above) for the same
+# last-match-wins reason as the startdbus rule below.
+RUN echo "ALL ALL=NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/dpkg" >> /etc/sudoers
+
 ENV XDG_RUNTIME_DIR=/tmp/.X11-unix
 
 ARG IMAGE_SOURCE
