@@ -176,7 +176,17 @@ RUN apt-get update -y && \
     apt-get remove -y python3-six software-properties-common && \
     apt-get autoremove -y && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /config/.cache /var/tmp/* /tmp/*
+    rm -rf /config/.cache /var/tmp/* /tmp/*
+
+# Deliberately NOT removing /var/lib/apt/lists/* above (unlike the other RUN
+# blocks in this Dockerfile): enter-the-wired's fix-deps script only runs
+# `apt update` when it detects i386 needs to be newly enabled, which never
+# happens here since i386 is already on from the Steam packages above.
+# Without a live index every apt-get install it runs -- for every package,
+# not just the 32-bit ones -- reports "not found" even though the packages
+# exist. Keeping the index warm costs some image size but means fix-deps
+# (and any ad-hoc apt-get install troubleshooting) works without the user
+# having to know to run `apt update` first.
 
 # fix NetworkManager not picking up devices
 RUN touch /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
