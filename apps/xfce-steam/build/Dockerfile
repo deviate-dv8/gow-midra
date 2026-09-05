@@ -120,16 +120,21 @@ RUN chmod u+s /usr/bin/bwrap
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# libxcb-cursor0: Qt 6.5+ hard-requires this for its xcb platform plugin --
-# without it a PyQt6 app can't initialize any display backend at all and
-# aborts. Not steam-specific, but there's nowhere better to put a single
-# small package for the desktop's other GUI apps.
+# libxcb-cursor0 / libxcb-keysyms1: Qt 6.5+'s xcb platform plugin links
+# both at load time -- missing either makes the whole plugin fail to
+# dlopen, which a PyQt6 app can't recover from (aborts immediately, no
+# display backend). Qt's own error message only ever mentions
+# libxcb-cursor0 regardless of which one is actually missing, which is
+# what made libxcb-keysyms1 easy to miss the first time around -- confirm
+# with `ldd libqxcb.so | grep "not found"` if this plugin ever fails to
+# load again. Not steam-specific, but there's nowhere better to put a
+# couple of small packages for the desktop's other GUI apps.
 ARG STEAM_PACKAGES=" \
     steam \
     dbus-daemon dbus-system-bus-common dbus-session-bus-common whoopsie network-manager bluez \
     ibus curl pkexec xz-utils zenity file xdg-user-dirs xdg-utils pciutils mesa-utils \
     libfontconfig1:i386 libfontconfig1:amd64 libfreetype6 libfreetype6:i386 \
-    libxcb-cursor0 \
+    libxcb-cursor0 libxcb-keysyms1 \
     "
 
 ARG AVOID_PACKAGES=" \
