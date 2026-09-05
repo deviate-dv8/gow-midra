@@ -214,6 +214,7 @@ COPY --from=bwrap-builder --chmod=755 /root/bubblewrap/_builddir/bwrap /usr/bin/
 # just drops the two Desktop shortcuts that fetch and run each installer
 # visibly, in a terminal, whenever you actually want them.
 RUN mkdir -p /opt/gow/startup.d
+COPY --chmod=755 scripts/enter-the-wired-wrapper.sh /opt/gow/enter-the-wired-wrapper.sh
 COPY --chmod=777 scripts/10-install-wired.sh /opt/gow/startup.d/10-install-wired.sh
 
 # Fix a brand-new (empty) persistent home missing skel dotfiles and having
