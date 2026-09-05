@@ -216,6 +216,12 @@ COPY --from=bwrap-builder --chmod=755 /root/bubblewrap/_builddir/bwrap /usr/bin/
 RUN mkdir -p /opt/gow/startup.d
 COPY --chmod=777 scripts/10-install-wired.sh /opt/gow/startup.d/10-install-wired.sh
 
+# Fix a brand-new (empty) persistent home missing skel dotfiles and having
+# Steam's own mount-point directories owned by root -- see script for why.
+# Numbered to run right after 10-setup_user.sh creates the user, and before
+# Steam or anything else in cont-init.d touches $HOME.
+COPY --chmod=777 scripts/fix-fresh-home.sh /etc/cont-init.d/12-fix-fresh-home.sh
+
 # Steam system services (dbus-system/bluetooth/NetworkManager for controller pairing)
 COPY --chmod=777 scripts/system-services.sh /etc/cont-init.d/system-services.sh
 
