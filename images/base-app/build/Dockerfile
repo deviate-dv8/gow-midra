@@ -84,23 +84,28 @@ RUN apt-get update -y && \
 
 WORKDIR /build
 
+# Pinned rather than resolved dynamically ("latest xwayland-* tag") because
+# that approach silently started pulling xwayland-26.0.99.901 -- a 26.x
+# release-candidate tag that sorts after every 24.1.x release and bumped
+# the wayland-client requirement to >=1.26, which Ubuntu's libwayland-dev
+# doesn't ship. 24.1.13 is the last stable 24.x release (requires
+# wayland-client >=1.21, satisfied by Ubuntu 25.04's 1.23.1). Bump this
+# only to another *stable* tag, and re-check its meson.build wayland_req
+# against the base image's libwayland-dev version first.
+ARG XWAYLAND_VERSION=24.1.13
+ENV XWAYLAND_VERSION=$XWAYLAND_VERSION
+
 RUN <<_BUILD_XWAYLAND
     set -eux
 
-    LATEST_TAG=$(git ls-remote --tags --refs --sort='version:refname' \
-      https://gitlab.freedesktop.org/xorg/xserver.git 'refs/tags/xwayland-*' \
-      | awk -F/ '{print $NF}' \
-      | grep -E '^xwayland-[0-9]+(\.[0-9]+)+$' \
-      | tail -1)
-    test -n "$LATEST_TAG" || { echo "Failed to resolve latest xwayland tag"; exit 1; }
-    echo "Building $LATEST_TAG"
+    TAG="xwayland-${XWAYLAND_VERSION}"
+    echo "Building $TAG"
 
-    # Fetch sources from the same host the ls-remote above talked to.
-    # xorg.freedesktop.org's archive mirror has gone down intermittently
-    # and taken CI with it; gitlab.freedesktop.org hosts the same tags.
-    git clone --depth 1 --branch "${LATEST_TAG}" \
-      https://gitlab.freedesktop.org/xorg/xserver.git "${LATEST_TAG}"
-    cd "${LATEST_TAG}"
+    # Fetch from gitlab.freedesktop.org: xorg.freedesktop.org's archive
+    # mirror has gone down intermittently and taken CI with it.
+    git clone --depth 1 --branch "${TAG}" \
+      https://gitlab.freedesktop.org/xorg/xserver.git "${TAG}"
+    cd "${TAG}"
     pwd
 
     TARGET=hw/xwayland/xwayland-output.c
@@ -156,14 +161,28 @@ ARG REQUIRED_PACKAGES="\
     waybar fonts-font-awesome xdg-desktop-portal xdg-desktop-portal-gtk psmisc \
     "
 
+# kisak-mesa PPA added by hand rather than via add-apt-repository:
+# add-apt-repository resolves the PPA through launchpad.net's API before
+# adding it, and that host is unreachable (connection timeout) on some
+# networks/CI runners even though the actual package mirror
+# (ppa.launchpadcontent.net) and keyserver.ubuntu.com are both fine. Fetching
+# the signing key straight from the keyserver and writing the sources entry
+# directly sidesteps the launchpad.net dependency entirely. Fingerprint is
+# kisak-mesa's published signing key (verify against
+# https://launchpad.net/~kisak/+archive/ubuntu/kisak-mesa if it's ever
+# rotated).
+ARG KISAK_MESA_KEY_FINGERPRINT="EB8B81E14DA65431D7504EA8F63F0F2B90935439"
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    add-apt-repository -y ppa:kisak/kisak-mesa && \
+    apt-get install -y --no-install-recommends gnupg ca-certificates curl && \
+    install -d -m 0755 /etc/apt/keyrings && \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x${KISAK_MESA_KEY_FINGERPRINT}" \
+      | gpg --dearmor -o /etc/apt/keyrings/kisak-mesa.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/kisak-mesa.gpg] https://ppa.launchpadcontent.net/kisak/kisak-mesa/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") main" \
+      > /etc/apt/sources.list.d/kisak-mesa.list && \
     apt-get update -y && \
     apt-get install -y --no-install-recommends \
     $REQUIRED_PACKAGES && \
-    apt-get remove -y --purge software-properties-common && \
-    rm -f /etc/apt/sources.list.d/kisak-ubuntu-kisak-mesa-*.sources && \
+    rm -f /etc/apt/sources.list.d/kisak-mesa.list /etc/apt/keyrings/kisak-mesa.gpg && \
     rm -rf /var/lib/apt/lists/*
 
 # Install patched Xwayland into /usr/local (wins over distro /usr/bin/Xwayland
@@ -203,10 +222,17 @@ ENV PATH="/usr/games/:${PATH}"
 #################################
 # We had lots of issues with Sway 1.10.1
 # So we are manually reverting back to 1.9 from Ubuntu 24.04
+#
+# Fetched from archive.ubuntu.com's pool rather than the launchpad.net build
+# link: launchpad.net (and launchpadlibrarian.net, which it redirects
+# through) is unreachable -- connection timeout -- on some networks/CI
+# runners even though the standard archive mirrors are fine. Same exact
+# package/version, still current in noble's universe pool (not superseded),
+# just fetched from a host that's actually reachable.
 RUN <<_INSTALL_SWAY
 #!/bin/bash
 set -e
-curl -L -o sway.deb https://launchpad.net/ubuntu/+source/sway/1.9-1build2/+build/28013086/+files/sway_1.9-1build2_amd64.deb
+curl -L -o sway.deb http://archive.ubuntu.com/ubuntu/pool/universe/s/sway/sway_1.9-1build2_amd64.deb
 apt update
 apt install -y --no-install-recommends ./sway.deb
 rm -rf /var/lib/apt/lists/* ./sway.deb
