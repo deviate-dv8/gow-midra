@@ -10,6 +10,31 @@
 # ACCELA update.
 set -e
 
+# Headcrab's own patched entry point (what it installs as
+# ~/.steam/steam/steam.sh) hardcodes `source ~/.steam/steam/client.sh` as
+# its handoff to the real Steam client. Debian/Ubuntu's apt-packaged Steam
+# never has a file by that name -- its real launcher is just steam.sh,
+# which Headcrab's patch is about to overwrite. Confirmed directly: that
+# source call fails with "No such file or directory", but it's wrapped in
+# `&> /dev/null` with no error check, so nothing ever surfaces it -- the
+# real client (and steamclient.so) just silently never launches after
+# Headcrab's patch runs, even though SLSsteam's own init still fires
+# (hence the config loading but never reaching "Loaded successfully").
+#
+# Fix: make sure Steam has bootstrapped its real steam.sh at least once,
+# then preserve a copy as client.sh before Headcrab's patch replaces the
+# original, so that source call actually finds something valid.
+if [ ! -f "$HOME/.steam/steam/client.sh" ]; then
+    echo "Bootstrapping Steam once first, so Headcrab's patch has a real"
+    echo "client.sh to hand off to (Debian's own launcher is only ever"
+    echo "named steam.sh, which Headcrab's patch is about to replace)."
+    /usr/games/steam.real -exitsteam >/dev/null 2>&1 || true
+    if [ -f "$HOME/.steam/steam/steam.sh" ]; then
+        cp "$HOME/.steam/steam/steam.sh" "$HOME/.steam/steam/client.sh"
+        chmod +x "$HOME/.steam/steam/client.sh"
+    fi
+fi
+
 if [ -f "$HOME/.local/share/SLSsteam/SLSsteam.so" ]; then
     echo "SLSsteam is already attached -- skipping Headcrab's Steam-client patch"
     echo "(that's the flaky/racy part) and just refreshing ACCELA + dependencies."
