@@ -20,3 +20,32 @@ if [ -f "$HOME/.local/share/SLSsteam/SLSsteam.so" ]; then
 else
     curl -fsSL https://raw.githubusercontent.com/ciscosweater/enter-the-wired/main/enter-the-wired | bash
 fi
+
+# Headcrab's own SLSsteam-Any-release.7z has shipped bin/library-inject.so
+# as a 0-byte file since its 2026-09-03 release (20260903114323) -- verified
+# against the previous release (20260820085507), where it's a real 26KB
+# ELF library. LD_AUDIT loads library-inject.so and SLSsteam.so together;
+# an empty first library breaks that chain, which is why SLSsteam's config
+# loads (its own init log lines appear) but it never gets far enough to
+# report attaching to steamclient.so. Not something we can fix upstream
+# from here, so patch the known-good copy in over the broken one until
+# AceSLS/SLSsteam ships a fix.
+INJECT_LIB="$HOME/.local/share/SLSsteam/library-inject.so"
+if [ -f "$INJECT_LIB" ] && [ ! -s "$INJECT_LIB" ]; then
+    echo
+    echo "library-inject.so shipped empty in this SLSsteam release (upstream"
+    echo "regression) -- patching in a known-good copy from the previous release."
+    GOOD_LIB_TMP="$(mktemp -d)"
+    if curl -fsSL --retry 3 --retry-delay 2 \
+         "https://github.com/AceSLS/SLSsteam/releases/download/20260820085507/SLSsteam-Any-release.7z" \
+         -o "$GOOD_LIB_TMP/good.7z" \
+       && 7z x -y -o"$GOOD_LIB_TMP/extract" "$GOOD_LIB_TMP/good.7z" bin/library-inject.so >/dev/null 2>&1 \
+       && [ -s "$GOOD_LIB_TMP/extract/bin/library-inject.so" ]; then
+        cp "$GOOD_LIB_TMP/extract/bin/library-inject.so" "$INJECT_LIB"
+        chmod 755 "$INJECT_LIB"
+        echo "Fixed: library-inject.so replaced with a working copy."
+    else
+        echo "Could not fetch a working library-inject.so -- SLSsteam may not fully attach."
+    fi
+    rm -rf "$GOOD_LIB_TMP"
+fi
