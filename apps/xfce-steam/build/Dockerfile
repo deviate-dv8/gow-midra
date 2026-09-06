@@ -208,14 +208,6 @@ RUN mkdir -p /usr/lib/steam /tmp/steam-extract && \
     cp -r /tmp/steam-extract/usr/share/icons/hicolor/. /usr/share/icons/hicolor/ && \
     install -m 644 -D /tmp/steam-extract/usr/share/applications/steam.desktop /usr/share/applications/steam.desktop && \
     sed -i 's#/usr/bin/steam#/usr/games/steam#g' /usr/share/applications/steam.desktop && \
-    # \
-    # bin_steam.sh's own install_bootstrap() copies $bootstrapdir/steam.desktop
-    # (i.e. /usr/lib/steam/steam.desktop) onto the user's Desktop the first
-    # time it runs -- with `set -e` active, that `cp` failing on a missing
-    # file kills the whole launcher silently before it ever reaches the real
-    # client. The original package has this as a symlink to the .desktop
-    # above, not a separate file -- match that exactly. \
-    ln -sf ../../share/applications/steam.desktop /usr/lib/steam/steam.desktop && \
     rm -rf /tmp/steam_latest.deb /tmp/steam-extract
 
 # Deliberately NOT removing /var/lib/apt/lists/* above (unlike the other RUN
