@@ -9,11 +9,6 @@ source /opt/gow/bash-lib/utils.sh
 # baked in.
 mkdir -p "$HOME/Desktop"
 
-# Remove the old SteaMidra shortcut left behind on persistent volumes from
-# before this app switched installers -- it points at install-midra-*.sh,
-# which no longer exists in the image.
-rm -f "$HOME/Desktop/Install SteaMidra.desktop"
-
 WIRED_SHORTCUT="$HOME/Desktop/Enter the Wired.desktop"
 if [ ! -f "$WIRED_SHORTCUT" ]; then
     gow_log "Creating Enter the Wired install shortcut on the Desktop"
