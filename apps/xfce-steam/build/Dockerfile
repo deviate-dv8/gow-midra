@@ -130,7 +130,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # load again. Not steam-specific, but there's nowhere better to put a
 # couple of small packages for the desktop's other GUI apps.
 ARG STEAM_PACKAGES=" \
-    steam-libs steam-libs-i386 steam-devices lsof \
+    steam \
     dbus-daemon dbus-system-bus-common dbus-session-bus-common whoopsie network-manager bluez \
     ibus curl pkexec xz-utils zenity file xdg-user-dirs xdg-utils pciutils mesa-utils \
     libfontconfig1:i386 libfontconfig1:amd64 libfreetype6 libfreetype6:i386 \
@@ -178,37 +178,15 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /config/.cache /var/tmp/* /tmp/*
 
-# Ubuntu's own Steam launcher package (steam-installer, what "apt install
-# steam" actually pulls in) hardcodes STEAMDIR="$HOME/.steam/debian-installation"
-# in its launcher script and never symlinks $HOME/.steam/steam anywhere --
-# a genuinely different, non-symlinked directory layout from Valve's own
-# bin_steam.sh, which installs to ~/.local/share/Steam and symlinks
-# $HOME/.steam/steam to it. Every third-party Steam client-modding tool
-# (Headcrab, SLSsteam, ACCELA) is built and tested against Valve's layout:
-# against Debian's, client-version detection comes back blank
-# ("cd: $HOME/.steam/steam/package: No such file or directory" on every
-# run) and Headcrab's LD_AUDIT patch lands on a script nothing ever
-# executes (confirmed both live in a running container).
-#
-# So: skip steam-installer/steam entirely -- steam-libs/steam-libs-i386
-# above already cover the actual runtime dependencies (mesa, curl, etc.),
-# that's all steam-installer added on top of them for the launcher itself
-# -- and install Valve's own bin_steam.sh + bootstrap tarball directly,
-# extracted from the exact same steam_latest.deb Ubuntu's own package
-# ultimately derives from. This is also literally how non-Debian distros
-# (Arch, Fedora, generic Linux) get Steam at all, so it's a well-trodden
-# path, not a hack: https://repo.steampowered.com/steam/archive/precise/
-RUN mkdir -p /usr/lib/steam /tmp/steam-extract && \
-    curl -fsSL https://repo.steampowered.com/steam/archive/precise/steam_latest.deb -o /tmp/steam_latest.deb && \
-    dpkg-deb -x /tmp/steam_latest.deb /tmp/steam-extract && \
-    install -m 755 /tmp/steam-extract/usr/lib/steam/bin_steam.sh /usr/lib/steam/bin_steam.sh && \
-    install -m 644 /tmp/steam-extract/usr/lib/steam/bootstraplinux_ubuntu12_32.tar.xz /usr/lib/steam/ && \
-    ln -sf /usr/lib/steam/bin_steam.sh /usr/games/steam && \
-    install -m 644 -D /tmp/steam-extract/usr/share/pixmaps/steam.png /usr/share/pixmaps/steam.png && \
-    cp -r /tmp/steam-extract/usr/share/icons/hicolor/. /usr/share/icons/hicolor/ && \
-    install -m 644 -D /tmp/steam-extract/usr/share/applications/steam.desktop /usr/share/applications/steam.desktop && \
-    sed -i 's#/usr/bin/steam#/usr/games/steam#g' /usr/share/applications/steam.desktop && \
-    rm -rf /tmp/steam_latest.deb /tmp/steam-extract
+# Headcrab (SLSsteam) only ever patches $HOME/.steam/steam/steam.sh, never
+# the actual "Steam" entry point (steam.desktop and /usr/games/steam both
+# launch $HOME/.steam/steam.sh -- a different, unpatched file one directory
+# up) -- see launch-steam-wrapper.sh for the full explanation. Move the
+# real Debian launcher aside and put a small dispatcher in its place;
+# nothing else references the original path so this is safe to do once
+# here at build time.
+RUN mv /usr/games/steam /usr/games/steam.real
+COPY --chmod=755 scripts/launch-steam-wrapper.sh /usr/games/steam
 
 # Deliberately NOT removing /var/lib/apt/lists/* above (unlike the other RUN
 # blocks in this Dockerfile): enter-the-wired's fix-deps script only runs
