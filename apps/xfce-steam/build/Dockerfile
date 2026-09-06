@@ -178,16 +178,6 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /config/.cache /var/tmp/* /tmp/*
 
-# Headcrab (SLSsteam) only ever patches $HOME/.steam/steam/steam.sh, never
-# the actual "Steam" entry point (steam.desktop and /usr/games/steam both
-# launch $HOME/.steam/steam.sh -- a different, unpatched file one directory
-# up) -- see launch-steam-wrapper.sh for the full explanation. Move the
-# real Debian launcher aside and put a small dispatcher in its place;
-# nothing else references the original path so this is safe to do once
-# here at build time.
-RUN mv /usr/games/steam /usr/games/steam.real
-COPY --chmod=755 scripts/launch-steam-wrapper.sh /usr/games/steam
-
 # Deliberately NOT removing /var/lib/apt/lists/* above (unlike the other RUN
 # blocks in this Dockerfile): enter-the-wired's fix-deps script only runs
 # `apt update` when it detects i386 needs to be newly enabled, which never
