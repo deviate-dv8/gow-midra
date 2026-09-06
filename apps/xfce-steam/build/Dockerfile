@@ -137,6 +137,27 @@ ARG STEAM_PACKAGES=" \
     libxcb-cursor0 libxcb-keysyms1 \
     "
 
+# Everything enter-the-wired's fix-deps installs at runtime, baked into the
+# image instead. This is what made SLSsteam "un-persist" on every new
+# session: fix-deps apt-installs these into the *container* filesystem,
+# not $HOME. Wolf persists $HOME (/etc/wolf/profile-data/user/<app>) but
+# every new session is a fresh container from this image, so anything apt
+# put in /usr was gone again -- while the SLSsteam install in $HOME
+# survived, looking like it should still work.
+#
+# SLSsteam.so is a 32-bit library linked against libcrypto.so.3, which
+# only libssl3t64:i386 provides. Without it the LD_AUDIT load fails, so
+# SLSsteam's config is read but it never attaches -- exactly the "only
+# the client-id notification, never the full sequence, until I re-run the
+# updater" symptom. Verified with `ldd SLSsteam.so` on a fresh container.
+#
+# libcryptopp8t64:i386 is in fix-deps' list too but does not exist in
+# Ubuntu for any architecture, so it is deliberately not listed here.
+ARG WIRED_DEP_PACKAGES=" \
+    python3-venv git \
+    libcurl4t64:i386 libssl3t64:i386 \
+    "
+
 ARG AVOID_PACKAGES=" \
     nvidia-driver-libs- nvidia-vulkan-icd- \
 "
@@ -167,7 +188,7 @@ RUN apt-get update -y && \
     add-apt-repository -y multiverse && \
     apt-get update -y && \
     apt-get install -y --no-install-recommends \
-      $STEAM_PACKAGES $AVOID_PACKAGES $FUSE_PACKAGES && \
+      $STEAM_PACKAGES $WIRED_DEP_PACKAGES $AVOID_PACKAGES $FUSE_PACKAGES && \
     # \
     # Fix steam updater UI font file \
     ln -s /usr/share/fonts/truetype/dejavu /usr/share/fonts/truetype/ttf-dejavu && \
